@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../lib/store';
 import { computeStats } from '../lib/stats';
 import { money, num, pct, rMult, tone, uid } from '../lib/format';
-import { Modal } from '../components/ui';
+import { ConfirmButton, Modal } from '../components/ui';
 import { PixelMeter } from '../components/Charts';
 import { Icon } from '../pixel/Sprite';
 import type { Playbook } from '../lib/types';
@@ -33,7 +33,7 @@ function PlaybookForm({ pb, onClose }: { pb?: Playbook; onClose: () => void }) {
           </div>
         </div>
         <footer className="form-actions">
-          {pb && <button type="button" className="btn danger ghost" onClick={() => { if (confirm('Delete this playbook? Trades keep their data but lose the setup link.')) { dispatch({ type: 'playbook/delete', id: pb.id }); onClose(); } }}>Delete</button>}
+          {pb && <ConfirmButton onConfirm={() => { dispatch({ type: 'playbook/delete', id: pb.id }); onClose(); }} confirmLabel="Delete? Trades keep their data">Delete</ConfirmButton>}
           <span className="spacer" />
           <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn primary">Save</button>

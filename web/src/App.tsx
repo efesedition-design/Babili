@@ -54,7 +54,6 @@ export function App() {
   const openTrade = useCallback((t: Trade) => setEditing(t), []);
   const newTrade = useCallback(() => setEditing('new'), []);
   const loadDemo = useCallback(() => {
-    if (state.trades.length && !confirm('Add demo trades and notes alongside your data?')) return;
     const d = demoData();
     const existing = new Set(state.trades.map((t) => t.id));
     dispatch({ type: 'trade/add-many', trades: d.trades.filter((t) => !existing.has(t.id)) });

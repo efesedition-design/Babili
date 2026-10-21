@@ -3,7 +3,7 @@ import type { Trade } from '../lib/types';
 import { useStore } from '../lib/store';
 import { fromLocalInput, money, rMult, toLocalInput, uid } from '../lib/format';
 import { tradePnl, tradeR } from '../lib/stats';
-import { ChipInput, Modal, Stars } from './ui';
+import { ChipInput, ConfirmButton, Modal, Stars } from './ui';
 
 const COMMON_MISTAKES = ['FOMO entry', 'moved stop', 'oversized', 'early exit', 'revenge trade', 'no plan', 'chased', 'ignored HTF bias'];
 
@@ -151,9 +151,7 @@ export function TradeForm({ trade, onClose }: { trade?: Trade; onClose: () => vo
 
         <footer className="form-actions">
           {trade && (
-            <button type="button" className="btn danger ghost" onClick={() => { dispatch({ type: 'trade/delete', ids: [trade.id] }); onClose(); }}>
-              Delete
-            </button>
+            <ConfirmButton onConfirm={() => { dispatch({ type: 'trade/delete', ids: [trade.id] }); onClose(); }}>Delete</ConfirmButton>
           )}
           <span className="spacer" />
           <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>

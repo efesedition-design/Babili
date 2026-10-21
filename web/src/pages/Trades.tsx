@@ -3,7 +3,7 @@ import { useStore } from '../lib/store';
 import { computeStats, holdMinutes, tradePnl, tradeR } from '../lib/stats';
 import { dateTime, duration, money, pct, rMult, tone, uid } from '../lib/format';
 import { exportTrades, importTrades } from '../lib/csv';
-import { download } from '../components/ui';
+import { ConfirmButton, download } from '../components/ui';
 import { Icon } from '../pixel/Sprite';
 import type { Trade } from '../lib/types';
 
@@ -117,9 +117,9 @@ export function Trades({ onOpenTrade, onNewTrade }: { onOpenTrade: (t: Trade) =>
         <span>{pct(s.winRate, 0)} win</span>
         <span>avg {rMult(s.avgR)}</span>
         {selected.size > 0 && (
-          <button className="btn danger ghost small" onClick={() => { if (confirm(`Delete ${selected.size} trade(s)?`)) { dispatch({ type: 'trade/delete', ids: [...selected] }); setSelected(new Set()); } }}>
+          <ConfirmButton className="btn danger ghost small" onConfirm={() => { dispatch({ type: 'trade/delete', ids: [...selected] }); setSelected(new Set()); }} confirmLabel={`Delete ${selected.size}? Click again`}>
             <Icon name="trash" size={10} /> Delete {selected.size}
-          </button>
+          </ConfirmButton>
         )}
       </div>
 

@@ -116,6 +116,30 @@ export function Segmented<T extends string>({ value, options, onChange }: { valu
   );
 }
 
+/** A button that asks for a second click instead of a blocking confirm() dialog. */
+export function ConfirmButton({ onConfirm, children, confirmLabel = 'Click again to confirm', className = 'btn danger ghost' }: { onConfirm: () => void; children: ReactNode; confirmLabel?: string; className?: string }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = window.setTimeout(() => setArmed(false), 3000);
+    return () => window.clearTimeout(t);
+  }, [armed]);
+  return (
+    <button type="button" className={`${className}${armed ? ' armed' : ''}`} onClick={() => (armed ? (setArmed(false), onConfirm()) : setArmed(true))}>
+      {armed ? confirmLabel : children}
+    </button>
+  );
+}
+
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function download(name: string, content: string, type = 'text/plain') {
   const url = URL.createObjectURL(new Blob([content], { type }));
   const a = document.createElement('a');

@@ -3,7 +3,7 @@ import { emptyState, normaliseState, useStore } from '../lib/store';
 import { companionXp, levelFromXp } from '../lib/companion';
 import { CHARACTERS } from '../pixel/sprites';
 import { CompanionSprite } from '../pixel/Sprite';
-import { Card, Segmented, download } from '../components/ui';
+import { Card, ConfirmButton, Segmented, copyText, download } from '../components/ui';
 import type { CompanionId, Theme } from '../lib/types';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'TRY', 'JPY', 'AUD', 'CAD', 'CHF', 'USDT'];
@@ -67,15 +67,17 @@ export function Settings({ onLoadDemo }: { onLoadDemo: () => void }) {
         <p className="muted small">Everything lives in this browser’s local storage. Export a backup regularly — clearing site data deletes your journal.</p>
         <div className="row gap wrap">
           <button className="btn" onClick={() => download(`babili-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(state, null, 2), 'application/json')}>Download backup</button>
+          <button className="btn ghost" onClick={async () => setMsg((await copyText(JSON.stringify(state))) ? 'Backup copied. Paste it into a .json file somewhere safe.' : 'Copying was blocked. Use Download backup instead.')}>Copy backup</button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) restore(f); e.target.value = ''; }} />
           <button className="btn ghost" onClick={() => fileRef.current?.click()}>Restore backup</button>
-          <button className="btn ghost" onClick={onLoadDemo}>Load demo data</button>
-          <button
-            className="btn danger ghost"
-            onClick={() => { if (confirm('Delete all trades, notes and playbooks? This cannot be undone.')) dispatch({ type: 'replace', state: { ...emptyState(), settings: s } }); }}
-          >
+          {state.trades.length ? (
+            <ConfirmButton className="btn ghost" onConfirm={onLoadDemo} confirmLabel="Mix demo into your data?">Load demo data</ConfirmButton>
+          ) : (
+            <button className="btn ghost" onClick={onLoadDemo}>Load demo data</button>
+          )}
+          <ConfirmButton onConfirm={() => dispatch({ type: 'replace', state: { ...emptyState(), settings: s } })} confirmLabel="Erase all trades, notes, playbooks?">
             Erase everything
-          </button>
+          </ConfirmButton>
         </div>
       </Card>
     </div>
