@@ -59,7 +59,13 @@ export function Trades({ onOpenTrade, onNewTrade }: { onOpenTrade: (t: Trade) =>
   );
 
   const onImport = async (file: File) => {
-    const text = await file.text();
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      setMsg('That file could not be read. Make sure it is a .csv file.');
+      return;
+    }
     const newBooks = new Map<string, string>();
     const resolve = (name: string) => {
       const existing = state.playbooks.find((p) => p.name.toLowerCase() === name.toLowerCase());
@@ -68,11 +74,24 @@ export function Trades({ onOpenTrade, onNewTrade }: { onOpenTrade: (t: Trade) =>
       return newBooks.get(name);
     };
     const res = importTrades(text, resolve);
-    for (const [name, id] of newBooks) {
-      dispatch({ type: 'playbook/upsert', playbook: { id, name, description: 'Imported from CSV', rules: [], color: '#8b8b99' } });
+    if (res.problem) {
+      setMsg(`Nothing imported. ${res.problem}`);
+      return;
     }
-    dispatch({ type: 'trade/add-many', trades: res.trades });
-    setMsg(`Imported ${res.trades.length} trade${res.trades.length === 1 ? '' : 's'}${res.skipped ? `, skipped ${res.skipped} row${res.skipped === 1 ? '' : 's'} missing symbol/date/prices` : ''}.`);
+    // Re-importing the same export should not double your trades.
+    const key = (t: Trade) => `${t.symbol}|${t.side}|${t.openedAt}|${t.closedAt}|${t.entry}|${t.exit}|${t.qty}`;
+    const seen = new Set(state.trades.map(key));
+    const fresh = res.trades.filter((t) => !seen.has(key(t)));
+    const usedBooks = new Set(fresh.map((t) => t.playbookId));
+    for (const [name, id] of newBooks) {
+      if (usedBooks.has(id)) dispatch({ type: 'playbook/upsert', playbook: { id, name, description: 'Imported from CSV', rules: [], color: '#8b8b99' } });
+    }
+    dispatch({ type: 'trade/add-many', trades: fresh });
+    const dupes = res.trades.length - fresh.length;
+    const parts = [`Imported ${fresh.length} trade${fresh.length === 1 ? '' : 's'}`];
+    if (dupes) parts.push(`${dupes} already in your journal`);
+    if (res.skipped) parts.push(`skipped ${res.skipped} row${res.skipped === 1 ? '' : 's'} missing a symbol, date or price`);
+    setMsg(`${parts.join(', ')}.`);
   };
 
   const allChecked = rows.length > 0 && rows.every((t) => selected.has(t.id));
@@ -167,7 +186,7 @@ export function Trades({ onOpenTrade, onNewTrade }: { onOpenTrade: (t: Trade) =>
         </table>
         {!rows.length && <p className="muted center pad">No trades match. Try clearing filters, or import a CSV from your broker.</p>}
       </div>
-      <p className="muted small">CSV import auto-detects columns like <code>symbol, side, entry, exit, qty, fees, stop, opened_at, closed_at, pnl, setup, tags, notes</code>.</p>
+      <p className="muted small">Works with Binance Futures Position History and most broker exports. CSV import auto-detects columns like <code>symbol, side, entry, exit, qty, fees, stop, opened_at, closed_at, pnl, setup, tags, notes</code>.</p>
     </div>
   );
 }

@@ -37,3 +37,31 @@ describe('importTrades', () => {
     expect(tradePnl(again[0])).toBe(3);
   });
 });
+
+describe('exchange and locale formats', () => {
+  it('reads a Binance Futures position history export', () => {
+    const csv = '﻿Symbol,Margin Mode,Position Side,Entry Price,Avg. Close Price,Max Open Interest,Closed Vol.,Closing PNL,Opened,Closed,Status\n' +
+      'BTCUSDT,Isolated,Short,77484.3,77257.8,0.079,0.079,17.8935,2026-04-24 12:21:29,2026-04-27 18:04:51,Closed';
+    const [t] = importTrades(csv).trades;
+    expect(t.side).toBe('short');
+    expect(t.qty).toBe(0.079);
+    expect(tradePnl(t)).toBeCloseTo(17.8935, 3);
+  });
+  it('reads Turkish Excel headers, decimal commas and day-first dates', () => {
+    const [t] = importTrades('Sembol;Yön;Giriş;Çıkış;Miktar;Tarih\nBTCUSDT;Sat;110,5;100,5;2;21.10.2026 14:30').trades;
+    expect(t.side).toBe('short');
+    expect(tradePnl(t)).toBe(20);
+    expect(new Date(t.openedAt).getDate()).toBe(21);
+  });
+  it('reads MetaTrader reports with repeated Time and Price columns', () => {
+    const csv = 'Time,Position,Symbol,Type,Volume,Price,S / L,T / P,Time,Price,Commission,Swap,Profit\n' +
+      '2024.05.01 10:00:00,1,EURUSD,buy,1,1.08,1.078,1.084,2024.05.01 11:00:00,1.083,-7,0,300';
+    const [t] = importTrades(csv).trades;
+    expect([t.entry, t.exit, t.stop]).toEqual([1.08, 1.083, 1.078]);
+    expect(new Date(t.closedAt).getHours()).toBe(11);
+  });
+  it('explains what is wrong instead of silently skipping', () => {
+    expect(importTrades('foo,bar\n1,2').problem).toMatch(/symbol/);
+    expect(importTrades('Date(UTC),Pair,Side,Price,Executed,Amount,Fee\n2024-05-01,BTCUSDT,BUY,1,1,1,0').problem).toMatch(/Position History/);
+  });
+});

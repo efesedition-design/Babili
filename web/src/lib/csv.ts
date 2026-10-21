@@ -35,32 +35,58 @@ function detectDelimiter(text: string): string {
 }
 
 const ALIASES: Record<string, string[]> = {
-  symbol: ['symbol', 'ticker', 'instrument', 'pair', 'market', 'asset'],
-  side: ['side', 'direction', 'type', 'position', 'long/short'],
-  openedAt: ['openedat', 'opened', 'open time', 'opentime', 'entry time', 'entrytime', 'entry date', 'date', 'open date', 'time'],
-  closedAt: ['closedat', 'closed', 'close time', 'closetime', 'exit time', 'exittime', 'exit date', 'close date'],
-  entry: ['entry', 'entry price', 'entryprice', 'open price', 'openprice', 'buy price', 'avg entry'],
-  exit: ['exit', 'exit price', 'exitprice', 'close price', 'closeprice', 'sell price', 'avg exit'],
-  qty: ['qty', 'quantity', 'size', 'shares', 'contracts', 'amount', 'volume', 'lots'],
-  fees: ['fees', 'fee', 'commission', 'commissions', 'costs'],
-  stop: ['stop', 'stop loss', 'stoploss', 'sl', 'initial stop'],
-  target: ['target', 'take profit', 'takeprofit', 'tp'],
-  pnl: ['pnl', 'p&l', 'profit', 'net pnl', 'net p&l', 'realized pnl', 'realized p&l', 'result', 'net profit'],
-  tags: ['tags', 'tag', 'labels'],
-  notes: ['notes', 'note', 'comment', 'comments'],
-  setup: ['setup', 'playbook', 'strategy'],
+  // Aliases are matched after normalise(): lowercase, no accents, no punctuation.
+  // Turkish names cover spreadsheets exported from Excel with a Turkish locale.
+  symbol: ['symbol', 'ticker', 'instrument', 'pair', 'market', 'asset', 'contract', 'sembol', 'parite', 'enstruman'],
+  side: ['side', 'direction', 'type', 'position side', 'position', 'long short', 'yon', 'islem yonu', 'pozisyon'],
+  openedAt: ['openedat', 'opened', 'open time', 'opentime', 'entry time', 'entrytime', 'entry date', 'open date', 'date', 'time', 'acilis', 'acilis zamani', 'acilis tarihi', 'giris zamani', 'giris tarihi', 'tarih'],
+  closedAt: ['closedat', 'closed', 'close time', 'closetime', 'exit time', 'exittime', 'exit date', 'close date', 'kapanis', 'kapanis zamani', 'kapanis tarihi', 'cikis zamani', 'cikis tarihi'],
+  entry: ['entry', 'entry price', 'entryprice', 'open price', 'openprice', 'buy price', 'avg entry', 'avg entry price', 'average entry price', 'avg open price', 'giris', 'giris fiyati', 'acilis fiyati', 'alis fiyati'],
+  exit: ['exit', 'exit price', 'exitprice', 'close price', 'closeprice', 'sell price', 'avg exit', 'avg exit price', 'avg close price', 'average close price', 'cikis', 'cikis fiyati', 'kapanis fiyati', 'satis fiyati'],
+  qty: ['qty', 'quantity', 'size', 'shares', 'contracts', 'closed vol', 'closed volume', 'close vol', 'volume', 'lots', 'amount', 'miktar', 'adet', 'lot', 'hacim', 'buyukluk'],
+  fees: ['fees', 'fee', 'commission', 'commissions', 'costs', 'trading fee', 'komisyon', 'ucret'],
+  stop: ['stop', 'stop loss', 'stoploss', 'sl', 's l', 'initial stop', 'zarar durdur'],
+  target: ['target', 'take profit', 'takeprofit', 'tp', 't p', 'hedef', 'kar al'],
+  pnl: ['pnl', 'p&l', 'p l', 'profit', 'net pnl', 'net p&l', 'realized pnl', 'realized p&l', 'realized profit', 'closing pnl', 'closed pnl', 'result', 'net profit', 'kar zarar', 'kar', 'net kar', 'sonuc'],
+  tags: ['tags', 'tag', 'labels', 'etiket', 'etiketler'],
+  notes: ['notes', 'note', 'comment', 'comments', 'not', 'notlar', 'aciklama', 'yorum'],
+  setup: ['setup', 'playbook', 'strategy', 'strateji', 'kurulum'],
+  price: ['price', 'fill price', 'avg price', 'average price', 'execution price', 'fiyat'],
 };
 
-function normalise(h: string): string {
-  return h.trim().toLowerCase().replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ');
+export function normalise(h: string): string {
+  return h
+    .replace(/^\ufeff/, '')
+    .replace(/\(.*?\)/g, ' ')
+    .toLowerCase()
+    .replace(/ı/g, 'i')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_\-/.:]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function mapHeaders(headers: string[]): Partial<Record<keyof typeof ALIASES, number>> {
   const out: Partial<Record<string, number>> = {};
   const norm = headers.map(normalise);
+  const used = new Set<number>();
+  const find = (aliases: string[], from = 0) =>
+    norm.findIndex((h, i) => i >= from && !used.has(i) && (aliases.includes(h) || aliases.includes(h.replace(/ /g, ''))));
+  // Prefer the earliest alias in each list, so "position side" beats a generic "position" column.
   for (const [field, aliases] of Object.entries(ALIASES)) {
-    const idx = norm.findIndex((h) => aliases.includes(h) || aliases.includes(h.replace(/ /g, '')));
-    if (idx >= 0) out[field] = idx;
+    for (const alias of aliases) {
+      const idx = find([alias]);
+      if (idx >= 0) { out[field] = idx; used.add(idx); break; }
+    }
+  }
+  // MetaTrader-style reports repeat "Time" and "Price": the second one is the close.
+  if (out.closedAt === undefined && out.openedAt !== undefined) {
+    const dup = norm.indexOf(norm[out.openedAt], out.openedAt + 1);
+    if (dup >= 0 && !used.has(dup)) { out.closedAt = dup; used.add(dup); }
+  }
+  if (out.entry === undefined && out.exit === undefined && out.price !== undefined) {
+    const dup = norm.indexOf(norm[out.price], out.price + 1);
+    if (dup >= 0 && !used.has(dup)) { out.entry = out.price; out.exit = dup; delete out.price; used.add(dup); }
   }
   return out;
 }
@@ -78,8 +104,8 @@ function toNum(v: string | undefined): number | undefined {
 }
 
 function toSide(v: string | undefined): Side {
-  const s = (v || '').trim().toLowerCase();
-  return /^(short|sell|s|bear)/.test(s) ? 'short' : 'long';
+  const s = normalise(v || '');
+  return /^(short|sell|s\b|bear|sat|kisa)/.test(s) ? 'short' : 'long';
 }
 
 function toIso(v: string | undefined): string | undefined {
@@ -89,11 +115,30 @@ function toIso(v: string | undefined): string | undefined {
     const n = Number(s);
     return new Date(s.length === 10 ? n * 1000 : n).toISOString();
   }
+  // Day-first dates: 21.10.2026 14:30, 21/10/2026, 2024.05.01 10:00:00 (MetaTrader).
+  const dm = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (dm && (s.includes('.') || Number(dm[1]) > 12)) {
+    const [, d, m, y, hh = '0', mm = '0', ss = '0'] = dm;
+    return new Date(+y, +m - 1, +d, +hh, +mm, +ss).toISOString();
+  }
+  const ym = s.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (ym) {
+    const [, y, m, d, hh = '0', mm = '0', ss = '0'] = ym;
+    return new Date(+y, +m - 1, +d, +hh, +mm, +ss).toISOString();
+  }
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
 }
 
-export interface ImportResult { trades: Trade[]; skipped: number; setupNames: string[] }
+export interface ImportResult {
+  trades: Trade[];
+  skipped: number;
+  setupNames: string[];
+  /** Why nothing could be imported, in words a person can act on. */
+  problem?: string;
+}
+
+const FIELD_LABEL: Record<string, string> = { symbol: 'symbol', openedAt: 'date/time', entry: 'entry price', exit: 'exit price', pnl: 'P&L' };
 
 /**
  * Turn a CSV export (broker, exchange, spreadsheet, Babili backtest) into trades.
@@ -101,8 +146,21 @@ export interface ImportResult { trades: Trade[]; skipped: number; setupNames: st
  */
 export function importTrades(text: string, resolveSetup: (name: string) => string | undefined = () => undefined): ImportResult {
   const rows = parseCsv(text);
-  if (rows.length < 2) return { trades: [], skipped: 0, setupNames: [] };
+  if (rows.length < 2) return { trades: [], skipped: 0, setupNames: [], problem: 'The file has no data rows.' };
   const map = mapHeaders(rows[0]);
+  const hasPrices = map.entry !== undefined && map.exit !== undefined;
+  if (map.price !== undefined && !hasPrices) {
+    return { trades: [], skipped: rows.length - 1, setupNames: [], problem: 'This looks like a fill-by-fill trade history. Export closed positions instead (on Binance Futures: Orders → Position History).' };
+  }
+  const missing = ['symbol', 'openedAt'].filter((f) => map[f] === undefined && !(f === 'openedAt' && map.closedAt !== undefined));
+  if (!hasPrices && map.pnl === undefined) missing.push(map.entry === undefined ? 'entry' : 'exit', 'pnl');
+  if (missing.length) {
+    const found = rows[0].map((h) => h.replace(/^\ufeff/, '').trim()).filter(Boolean).join(', ');
+    return {
+      trades: [], skipped: rows.length - 1, setupNames: [],
+      problem: `Couldn't find a column for ${missing.map((f) => FIELD_LABEL[f] ?? f).join(' / ')}. Columns in your file: ${found}.`,
+    };
+  }
   const get = (r: string[], f: keyof typeof ALIASES) => (map[f] !== undefined ? r[map[f]!] : undefined);
   const trades: Trade[] = [];
   const setupNames = new Set<string>();
