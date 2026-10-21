@@ -49,6 +49,15 @@ babili/
   cli.py                        # `signal` ve `backtest` komutlari
 ```
 
+## Web journal (`web/`)
+
+Islemlerini kaydetmek ve analiz etmek icin minimal, piksel-art karakterli bir
+trading journal web uygulamasi. Detaylar: [`web/README.md`](web/README.md).
+
+```bash
+cd web && npm install && npm run dev
+```
+
 ## Kurulum
 
 ```bash
